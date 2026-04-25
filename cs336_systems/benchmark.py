@@ -1,3 +1,34 @@
+"""
+End-to-end Transformer benchmarking script.
+
+This script is used for:
+- Section 2.1.3: End-to-End Benchmarking (forward/backward/optimizer timing)
+- Section 2.1.5: Mixed Precision Benchmarking
+- Section 2.1.6: Memory Profiling
+- Section 4.2(b): torch.compile on full Transformer model
+
+Supports:
+- Multiple model sizes (small, medium, large, xl, 10B)
+- Forward only, forward+backward, or forward+backward+optimizer modes
+- Mixed precision (BF16) mode
+- torch.compile wrapper
+- Memory profiling with torch.cuda.memory._dump_snapshot
+
+Usage:
+    # Section 2.1.3: basic benchmarking
+    python benchmark.py --size xl --warmup_steps 5 --n_steps 10 --context_length 512
+
+    # Section 4.2(b): compile comparison
+    python benchmark.py --size xl --compile --warmup_steps 5 --n_steps 10
+    python benchmark.py --size xl --warmup_steps 5 --n_steps 10  # vanilla baseline
+
+    # Section 2.1.5: mixed precision
+    python benchmark.py --size xl --mixed_precision --warmup_steps 5 --n_steps 10
+
+    # Section 2.1.6: memory profiling
+    python benchmark.py --size xl --memory_profile --context_length 2048
+"""
+
 import torch, timeit
 import numpy as np
 import torch.cuda.nvtx as nvtx
@@ -29,6 +60,8 @@ def parse_args():
     parser.add_argument("--mixed_precision", action="store_true")
     parser.add_argument("--memory_profile", action="store_true",
                         help="Enbale memory profile")
+    parser.add_argument("--compile", action="store_true",
+                    help="Compile model with torch.compile")
     return parser.parse_args()
 
 
@@ -72,8 +105,11 @@ def run_step(model, tokens: torch.Tensor, context_length: int, forward_only: boo
 
 def main():
     args = parse_args()
+
     print("Initializing Model...")
     model = build_model_from_size(args.size, args.device)
+    if args.compile:
+        model = torch.compile(model)
     print("Model Initialized!")
     optimizer = AdamW(model.parameters(), lr=1e-3) if args.with_optimizer else None
     ctx = torch.autocast(device_type="cuda", dtype=torch.bfloat16) if args.mixed_precision else nullcontext()
@@ -95,6 +131,7 @@ def main():
         torch.cuda.memory._record_memory_history(max_entries=1000000)
     with nvtx.range("measurement"):
         for _ in range(args.n_steps):
+            torch.cuda.synchronize()
             start_time = timeit.default_timer()
             run_step(model, batch, args.context_length, args.forward_only, ctx, optimizer)
             end_time = timeit.default_timer()
