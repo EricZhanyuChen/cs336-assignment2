@@ -12,14 +12,14 @@ mkdir -p outputs/s2_profiling/mixed_precision/logs
 # Compare FP32 vs BF16 for all model sizes
 for SIZE in small medium large xl; do
     echo "=== [2.1.5] Size: $SIZE - FP32 ==="
-    uv run python cs336_systems/benchmark.py \
+    uv run python cs336_systems/benchmarking_script.py \
         --size $SIZE \
         --warmup_steps 5 \
         --n_steps 10 \
         --context_length 512
 
     echo "=== [2.1.5] Size: $SIZE - BF16 ==="
-    uv run python cs336_systems/benchmark.py \
+    uv run python cs336_systems/benchmarking_script.py \
         --size $SIZE \
         --warmup_steps 5 \
         --n_steps 10 \

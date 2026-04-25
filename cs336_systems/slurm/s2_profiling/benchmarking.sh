@@ -12,7 +12,7 @@ mkdir -p outputs/s2_profiling/benchmarking/logs
 for SIZE in small medium large xl 10B; do
     for MODE in "--forward_only" "" "--with_optimizer"; do
         echo "=== [2.1.3b] Size: $SIZE | Mode: $MODE ==="
-        uv run python cs336_systems/benchmark.py \
+        uv run python cs336_systems/benchmarking_script.py \
             --size $SIZE \
             --warmup_steps 5 \
             --n_steps 10 \
@@ -24,7 +24,7 @@ done
 # 2.1.3c: varying warmup, small model
 for WARMUP in 0 1 2 5; do
     echo "=== [2.1.3c] Warmup steps: $WARMUP ==="
-    uv run python cs336_systems/benchmark.py \
+    uv run python cs336_systems/benchmarking_script.py \
         --size small \
         --warmup_steps $WARMUP \
         --n_steps 10 \
