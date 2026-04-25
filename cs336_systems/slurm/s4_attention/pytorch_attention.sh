@@ -3,7 +3,7 @@
 #SBATCH --partition=gpumedium
 #SBATCH --gres=gpu:rtx_pro_6000:1
 #SBATCH --time=00:30:00
-#SBATCH --output=outputs/s4_attention/logs/s4_pytorch_attention_compiled%j.out
+#SBATCH --output=outputs/s4_attention/logs/s4_pytorch_attention%j.out
 
 cd /home5/s6398820/projects/cs336/assignment2
 mkdir -p outputs/s4_attention/logs
