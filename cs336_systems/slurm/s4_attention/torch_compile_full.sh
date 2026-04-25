@@ -24,7 +24,7 @@ for MODE in "--forward_only" "" "--with_optimizer"; do
     uv run python cs336_systems/benchmark.py \
         --size xl \
         --warmup_steps 5 \
-        --n_steps 10 \
+        --n_steps 100 \
         --context_length 512 \
         $MODE
 
@@ -33,7 +33,7 @@ for MODE in "--forward_only" "" "--with_optimizer"; do
     uv run python cs336_systems/benchmark.py \
         --size xl \
         --warmup_steps 5 \
-        --n_steps 10 \
+        --n_steps 100 \
         --context_length 512 \
         --compile \
         $MODE
