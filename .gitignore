@@ -168,10 +168,5 @@ outputs/
 .claude_memory
 .kilo
 
-# Slurm scripts with student IDs
-cs336_systems/slurm/s2_profiling/memory_profiling_mp.sh
-cs336_systems/slurm/s2_profiling/nsys.sh
-cs336_systems/slurm/s3_checkpoint/
-
-# Local scripts with secrets
-switch-claude.sh
+# Slurm / local scripts
+*.sh
