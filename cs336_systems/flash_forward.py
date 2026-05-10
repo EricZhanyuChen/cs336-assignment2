@@ -131,7 +131,7 @@ def flash_fwd_kernel(
     tl.store(L_block_ptr, L_i, boundary_check=(0,))
 
 def flash_attention_forward(Q, K, V, is_causal=False):
-    return FlashAttentionFunc.apply(Q, K, V, causal)
+    return FlashAttentionFunc.apply(Q, K, V, is_causal)
 
 class FlashAttentionFuncTriton(torch.autograd.Function):
     @staticmethod
