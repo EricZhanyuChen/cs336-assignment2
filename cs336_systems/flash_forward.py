@@ -38,7 +38,9 @@ class FlashAttentionFunc(torch.autograd.Function):
     
     @staticmethod
     def backward(ctx, grad_output):
-        raise NotImplementedError
+        L, Q, K, V, O = ctx.saved_tensors
+        dQ, dK, dV = compiled_flash_bwd(Q, K, V, O, grad_output, L, ctx.is_causal)
+        return dQ, dK, dV, None
             
 @triton.jit
 def flash_fwd_kernel(
@@ -165,4 +167,19 @@ class FlashAttentionFuncTriton(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         raise NotImplementedError
+def flash_attention_backward_pytorch(Q, K, V, O, dO, L, is_causal=False):
+    B, N, d = Q.shape
+    scale = 1.0 / math.sqrt(d)
+    D  = (O * dO).sum(dim=-1)
+    S = (Q @ K.transpose(-2, -1)*scale)
+    P = torch.exp(S - L.unsqueeze(-1))
     
+    dV = P.transpose(-2, -1) @ dO
+    dP = dO @ V.transpose(-2, -1)
+    dS = P * (dP - D.unsqueeze(-1))
+
+    dQ = dS @ K * scale
+    dK = dS.transpose(-2, -1) @ Q * scale
+    return dQ, dK, dV
+
+compiled_flash_bwd = torch.compile(flash_attention_backward_pytorch)
