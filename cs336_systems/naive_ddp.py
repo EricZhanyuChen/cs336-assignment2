@@ -26,18 +26,14 @@ def train(rank, world_size, num_steps=5):
     setup(rank, world_size)
 
     model = ToyModel()
-
-    for param in model.parameters():
-        dist.broadcast(param.data, src=0)
+    model.load_state_dict(torch.load("initial_weights.pt", weights_only=True))
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    
-    if rank == 0:
-        torch.save(model.state_dict(), "initial_weights.pt")
     
     for step in range(num_steps):
         torch.manual_seed(step)
         x = torch.randn(4, 10)
-        x_shard = x[rank*2: (rank+1)*2]
+        shard_size = x.shape[0] // world_size
+        x_shard = x[rank*shard_size: (rank+1)*shard_size]
         optimizer.zero_grad()
         output = model(x_shard)
         loss = output.sum()
@@ -70,9 +66,13 @@ def single_process_train(num_steps=5):
 
 if __name__ == "__main__":
     world_size = 2
+    init_model = ToyModel()
+    torch.save(init_model.state_dict(), "initial_weights.pt")
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
     ddp_state = torch.load("final_weights_ddp.pt", weights_only=True)
     single_model = single_process_train()
     for (name, param), ddp_param in zip(single_model.named_parameters(), ddp_state.values()):
         match = torch.allclose(param.data, ddp_param, atol=1e-5)
+        if not match:
+            print(f"  max diff: {(param.data - ddp_param).abs().max().item()}")
         print(f"{name}: {'Yes' if match else 'No'}")
