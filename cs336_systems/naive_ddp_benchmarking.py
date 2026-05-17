@@ -21,6 +21,21 @@ def train(rank, world_size, num_steps=5):
     model = Transformer(d_model=2560,  d_ff=10240, num_layers=32, num_heads=32, vocab_size=1024)
     model.load_state_dict(torch.load("initial_weights.pt", weights_only=True))
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+
+    for step in range(5):
+        torch.manual_seed(step)
+        torch.cuda.synchronize()
+        x = torch.randint(0, 1024, (4, 512))
+        shard_size = x.shape[0] // world_size
+        x_shard = x[rank*shard_size: (rank+1)*shard_size]
+        optimizer.zero_grad()
+        output = model(x_shard, 512, 10000.0)
+        loss = output.sum()
+        loss.backward()
+
+        for param in model.parameters():
+            dist.all_reduce(param.grad, op=dist.ReduceOp.SUM)
+            param.grad /= world_size
     
     step_times = []
     reduce_times = []
@@ -35,7 +50,6 @@ def train(rank, world_size, num_steps=5):
         output = model(x_shard, 512, 10000.0)
         loss = output.sum()
         loss.backward()
-    
         
         torch.cuda.synchronize()
         t1= time.time()
