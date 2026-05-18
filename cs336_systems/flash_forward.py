@@ -122,7 +122,7 @@ def flash_fwd_kernel(
         if is_causal:
             q_idx = query_tile_index * Q_TILE_SIZE + tl.arange(0, Q_TILE_SIZE)
             k_idx = K_tile_start + tl.arange(0, K_TILE_SIZE)
-            mask = q_idx[None, :] < k_idx[:, None]
+            mask = q_idx[:, None] < k_idx[None, :]
             S = S + tl.where(mask, -1e6, 0.0)
 
         m_new = tl.maximum(tl.max(S, axis=1), m_i)
