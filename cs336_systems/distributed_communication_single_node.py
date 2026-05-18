@@ -1,6 +1,7 @@
 import torch
 import torch.distributed as dist
-import os 
+import os
+import time
 import torch.multiprocessing as mp
 import argparse
 
@@ -26,18 +27,17 @@ def benchmark(rank, world_size, data_size_mb, backend, output_file=None):
 
     num_elements = data_size_mb * 1024 * 1024 // 4
     tensor = torch.ones(num_elements, dtype=torch.float32, device=f"cuda:{rank}")
-    start = torch.cuda.Event(enable_timing=True)
-    end = torch.cuda.Event(enable_timing=True)
 
     for _ in range(5):
         dist.all_reduce(tensor)
 
-    start.record()
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
     for _ in range(20):
         dist.all_reduce(tensor)
-    end.record()
     torch.cuda.synchronize()
-    time_spent = start.elapsed_time(end) / 20
+    t1 = time.perf_counter()
+    time_spent = (t1 - t0) * 1000 / 20
     result = f"rank={rank}, data_size={data_size_mb}MB, world_size={world_size}, avg_time={time_spent:.2f}ms"
     print(result)
     if rank == 0 and output_file:

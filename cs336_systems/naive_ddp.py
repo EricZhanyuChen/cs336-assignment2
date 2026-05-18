@@ -8,9 +8,8 @@ OUTPUT_DIR = "outputs/s5_ddp"
 
 def setup(rank, world_size):
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "29500"
-    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+    os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "29500")
+    dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
 
 def cleanup():
     dist.destroy_process_group()
@@ -27,13 +26,13 @@ class ToyModel(nn.Module):
 def train(rank, world_size, num_steps=5):
     setup(rank, world_size)
 
-    model = ToyModel().cuda(rank)
-    model.load_state_dict(torch.load(f"{OUTPUT_DIR}/initial_weights.pt", weights_only=True, map_location=f"cuda:{rank}"))
+    model = ToyModel()
+    model.load_state_dict(torch.load(f"{OUTPUT_DIR}/initial_weights.pt", weights_only=True))
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     
     for step in range(num_steps):
         torch.manual_seed(step)
-        x = torch.randn(4, 10).cuda(rank)
+        x = torch.randn(4, 10)
         shard_size = x.shape[0] // world_size
         x_shard = x[rank*shard_size: (rank+1)*shard_size]
         optimizer.zero_grad()

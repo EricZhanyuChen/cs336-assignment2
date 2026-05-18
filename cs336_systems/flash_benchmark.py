@@ -86,8 +86,14 @@ if __name__ == "__main__":
     results = []
     for N, d, dtype in itertools.product(SEQ_LENS, HEAD_DIMS, DTYPES):
         print(f"Benchmarking N={N}, d={d}, dtype={dtype}...")
-        result = benchmark_config(N, d, dtype)
-        results.append({"N": N, "d": d, "dtype": str(dtype), **result})
+        try:
+            result = benchmark_config(N, d, dtype)
+            results.append({"N": N, "d": d, "dtype": str(dtype), **result})
+        except torch.cuda.OutOfMemoryError as e:
+            print(f"  OOM: {e}")
+            results.append({"N": N, "d": d, "dtype": str(dtype), "fwd_pt": "OOM",
+                            "bwd_pt": "OOM", "e2e_pt": "OOM", "fwd_triton": "OOM"})
+        torch.cuda.empty_cache()
     
     df = pd.DataFrame(results)
     out_path = os.path.join(args.output_dir, "flash_benchmark_results.csv")

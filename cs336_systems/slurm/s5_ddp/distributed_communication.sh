@@ -3,6 +3,7 @@
 #SBATCH --partition=gpumedium
 #SBATCH --output=outputs/s5_ddp/dist_comm_%j.out
 #SBATCH --gres=gpu:rtx_pro_6000:6
+#SBATCH --mem=32G
 #SBATCH --time=01:00:00
 
 cd /home5/s6398820/projects/cs336/assignment2
@@ -14,6 +15,7 @@ mkdir -p outputs/s5_ddp
 for WS in 2 4 6; do
     for MB in 1 10 100 1000; do
         echo "=== world_size=$WS, data_size=${MB}MB ==="
+        export MASTER_PORT=$((29500 + RANDOM % 1000))
         uv run python cs336_systems/distributed_communication_single_node.py \
             --world_size $WS \
             --data_size_mb $MB \
