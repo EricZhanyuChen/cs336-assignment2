@@ -1,5 +1,3 @@
-import os
-import argparse
 import torch
 import math
 import triton
@@ -50,39 +48,32 @@ def benchmark_config(N, d, dtype, device="cuda"):
     Q.grad = None
     K.grad = None
     V.grad = None
+    
+    O_triton = FlashAttentionFuncTriton.apply(Q, K, V, IS_CAUSAL)
 
-    fwd_triton_fwd_only = triton.testing.do_bench(
+    fwd_triton = triton.testing.do_bench(
         lambda: FlashAttentionFuncTriton.apply(Q, K, V, IS_CAUSAL)
     )
 
-    result = {
-        "fwd_pt": fwd_pt,
+    bwd_triton = triton.testing.do_bench(
+        lambda: O_triton.backward(dO, retain_graph=True)
+    )
+
+    def triton_e2e():
+        O = FlashAttentionFuncTriton.apply(Q, K, V, is_causal=IS_CAUSAL)
+        O.backward(dO)
+    e2e_triton = triton.testing.do_bench(triton_e2e)
+
+    return {
+        "fwd_pt":fwd_pt,
         "bwd_pt": bwd_pt,
         "e2e_pt": e2e_pt,
-        "fwd_triton": fwd_triton_fwd_only,
+        "fwd_triton": fwd_triton,
+        "bwd_triton": bwd_triton,
+        "e2e_triton": e2e_triton,
     }
 
-    if not args.skip_triton_bwd:
-        O_triton = FlashAttentionFuncTriton.apply(Q, K, V, IS_CAUSAL)
-        bwd_triton = triton.testing.do_bench(
-            lambda: O_triton.backward(dO, retain_graph=True)
-        )
-        def triton_e2e():
-            O = FlashAttentionFuncTriton.apply(Q, K, V, is_causal=IS_CAUSAL)
-            O.backward(dO)
-        e2e_triton = triton.testing.do_bench(triton_e2e)
-        result["bwd_triton"] = bwd_triton
-        result["e2e_triton"] = e2e_triton
-
-    return result
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output_dir", default="outputs/s4_attention")
-    parser.add_argument("--skip_triton_bwd", action="store_true", help="skip triton backward (raises NotImplementedError)")
-    args = parser.parse_args()
-
-    os.makedirs(args.output_dir, exist_ok=True)
     results = []
     for N, d, dtype in itertools.product(SEQ_LENS, HEAD_DIMS, DTYPES):
         print(f"Benchmarking N={N}, d={d}, dtype={dtype}...")
@@ -90,7 +81,4 @@ if __name__ == "__main__":
         results.append({"N": N, "d": d, "dtype": str(dtype), **result})
     
     df = pd.DataFrame(results)
-    out_path = os.path.join(args.output_dir, "flash_benchmark_results.csv")
-    df.to_csv(out_path, index=False)
-    print(f"Results saved to {out_path}")
     print(df.to_string(index=False))

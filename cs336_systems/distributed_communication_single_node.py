@@ -9,7 +9,6 @@ def parse_args():
     parser.add_argument("--data_size_mb",default="1", type=int)
     parser.add_argument("--backend", default="nccl")
     parser.add_argument("--world_size", type=int, required=True)
-    parser.add_argument("--output_dir", default="outputs/s5_ddp")
 
     return parser.parse_args()
 
@@ -21,7 +20,7 @@ def setup(rank, world_size, backend):
 def cleanup():
     dist.destroy_process_group()
 
-def benchmark(rank, world_size, data_size_mb, backend, output_file=None):
+def benchmark(rank, world_size, data_size_mb, backend):
     setup(rank=rank, world_size=world_size, backend=backend)
 
     num_elements = data_size_mb * 1024 * 1024 // 4
@@ -38,16 +37,10 @@ def benchmark(rank, world_size, data_size_mb, backend, output_file=None):
     end.record()
     torch.cuda.synchronize()
     time_spent = start.elapsed_time(end) / 20
-    result = f"rank={rank}, data_size={data_size_mb}MB, world_size={world_size}, avg_time={time_spent:.2f}ms"
-    print(result)
-    if rank == 0 and output_file:
-        with open(output_file, "w") as f:
-            f.write(result + "\n")
+    print(f"rank={rank}, data_size={data_size_mb}MB, avg time: {time_spent:.2f} ms")
     cleanup()
     
 
 if __name__ == "__main__":
     args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
-    out_file = os.path.join(args.output_dir, f"dist_comm_ws{args.world_size}_size{args.data_size_mb}mb.txt")
-    mp.spawn(benchmark, args=(args.world_size, args.data_size_mb, args.backend, out_file), nprocs=args.world_size)
+    mp.spawn(benchmark, args=(args.world_size, args.data_size_mb, args.backend), nprocs=args.world_size)
