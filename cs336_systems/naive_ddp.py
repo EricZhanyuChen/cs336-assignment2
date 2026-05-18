@@ -37,7 +37,7 @@ def train(rank, world_size, num_steps=5):
         x_shard = x[rank*shard_size: (rank+1)*shard_size]
         optimizer.zero_grad()
         output = model(x_shard)
-        loss = output.sum()
+        loss = output.mean()
         loss.backward()
 
         for param in model.parameters():
@@ -59,7 +59,7 @@ def single_process_train(num_steps=5):
         
         optimizer.zero_grad()
         output = model(x)
-        loss = output.sum()
+        loss = output.mean()
         loss.backward()
         optimizer.step()
     
