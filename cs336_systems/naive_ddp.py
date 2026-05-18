@@ -4,11 +4,13 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 
+OUTPUT_DIR = "outputs/s5_ddp"
+
 def setup(rank, world_size):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
-    dist.init_process_group(backend="gloo", rank=rank, world_size=world_size)
-    # torch.cuda.set_device(rank)
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
 
 def cleanup():
     dist.destroy_process_group()
@@ -25,13 +27,13 @@ class ToyModel(nn.Module):
 def train(rank, world_size, num_steps=5):
     setup(rank, world_size)
 
-    model = ToyModel()
-    model.load_state_dict(torch.load("initial_weights.pt", weights_only=True))
+    model = ToyModel().cuda(rank)
+    model.load_state_dict(torch.load(f"{OUTPUT_DIR}/initial_weights.pt", weights_only=True, map_location=f"cuda:{rank}"))
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     
     for step in range(num_steps):
         torch.manual_seed(step)
-        x = torch.randn(4, 10)
+        x = torch.randn(4, 10).cuda(rank)
         shard_size = x.shape[0] // world_size
         x_shard = x[rank*shard_size: (rank+1)*shard_size]
         optimizer.zero_grad()
@@ -44,12 +46,12 @@ def train(rank, world_size, num_steps=5):
             param.grad /= world_size
         optimizer.step()
     if rank == 0:
-        torch.save(model.state_dict(), "final_weights_ddp.pt")
+        torch.save(model.state_dict(), f"{OUTPUT_DIR}/final_weights_ddp.pt")
     cleanup()
 
 def single_process_train(num_steps=5):
     model = ToyModel()
-    model.load_state_dict(torch.load("initial_weights.pt", weights_only=True))
+    model.load_state_dict(torch.load(f"{OUTPUT_DIR}/initial_weights.pt", weights_only=True))
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     
     for step in range(num_steps):
@@ -65,11 +67,12 @@ def single_process_train(num_steps=5):
     return model
 
 if __name__ == "__main__":
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     world_size = 2
     init_model = ToyModel()
-    torch.save(init_model.state_dict(), "initial_weights.pt")
+    torch.save(init_model.state_dict(), f"{OUTPUT_DIR}/initial_weights.pt")
     mp.spawn(train, args=(world_size,), nprocs=world_size, join=True)
-    ddp_state = torch.load("final_weights_ddp.pt", weights_only=True)
+    ddp_state = torch.load(f"{OUTPUT_DIR}/final_weights_ddp.pt", weights_only=True)
     single_model = single_process_train()
     for (name, param), ddp_param in zip(single_model.named_parameters(), ddp_state.values()):
         match = torch.allclose(param.data, ddp_param, atol=1e-5)
