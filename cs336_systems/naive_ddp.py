@@ -75,7 +75,7 @@ if __name__ == "__main__":
     ddp_state = torch.load(f"{OUTPUT_DIR}/final_weights_ddp.pt", weights_only=True)
     single_model = single_process_train()
     for (name, param), ddp_param in zip(single_model.named_parameters(), ddp_state.values()):
-        match = torch.allclose(param.data, ddp_param, atol=1e-5)
+        match = torch.allclose(param.data, ddp_param.cpu(), atol=1e-5)
         if not match:
-            print(f"  max diff: {(param.data - ddp_param).abs().max().item()}")
+            print(f"  max diff: {(param.data - ddp_param.cpu()).abs().max().item()}")
         print(f"{name}: {'Yes' if match else 'No'}")
