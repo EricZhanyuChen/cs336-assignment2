@@ -167,6 +167,7 @@ outputs/
 # Agent configs and memory
 .claude_memory
 .kilo
+memory
 
 # Slurm / local scripts
 *.sh

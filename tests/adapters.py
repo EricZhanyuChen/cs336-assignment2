@@ -69,6 +69,15 @@ def ddp_on_after_backward(ddp_model: torch.nn.Module, optimizer: torch.optim.Opt
     raise NotImplementedError
 
 
+def get_ddp_individual_parameters(module: torch.nn.Module) -> torch.nn.Module:
+    from cs336_systems.ddp_overlap_individual_parameters import DDPOverIndividualParameter
+    return DDPOverIndividualParameter(module)
+
+
+def ddp_individual_parameters_on_after_backward(ddp_model: torch.nn.Module, optimizer: torch.optim.Optimizer):
+    ddp_model.finish_gradient_synchronization()
+
+
 def get_fsdp(module: torch.nn.Module, compute_dtype: torch.dtype | None = None) -> torch.nn.Module:
     """
     Returns a torch.nn.Module container that handles
