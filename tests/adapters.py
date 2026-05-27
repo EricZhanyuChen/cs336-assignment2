@@ -1,6 +1,7 @@
 from __future__ import annotations
 from cs336_systems.flash_forward import FlashAttentionFunc, FlashAttentionFuncTriton
 import torch
+import torch.distributed as dist
 
 
 
@@ -94,8 +95,8 @@ def get_fsdp(module: torch.nn.Module, compute_dtype: torch.dtype | None = None) 
         Instance of an FSDP class.
     """
     # For example: return FSDP(module, compute_dtype=compute_dtype)
-    raise NotImplementedError
-
+    from cs336_systems.fsdp import FSDP
+    return FSDP(module, compute_dtype=compute_dtype)
 
 def fsdp_on_after_backward(fsdp_model: torch.nn.Module, optimizer: torch.optim.Optimizer):
     """
@@ -109,7 +110,7 @@ def fsdp_on_after_backward(fsdp_model: torch.nn.Module, optimizer: torch.optim.O
             Optimizer being used with the FSDP-wrapped model.
     """
     # For example: fsdp_model.finish_gradient_synchronization()
-    raise NotImplementedError
+    fsdp_model.finish_gradient_synchronization()
 
 
 def fsdp_gather_full_params(fsdp_model: torch.nn.Module) -> dict[str, torch.Tensor]:
@@ -123,7 +124,21 @@ def fsdp_gather_full_params(fsdp_model: torch.nn.Module) -> dict[str, torch.Tens
     Returns:
         State dictionary mapping parameter names to full (unsharded) tensors.
     """
-    raise NotImplementedError
+    result = {}
+    sharded_weight_set = {m.weight for m in fsdp_model.sharded_modules}
+    weight_to_module = {m.weight: m for m in fsdp_model.sharded_modules}
+    for name, param in fsdp_model.module.named_parameters():
+        if param in sharded_weight_set:
+            full = torch.empty(weight_to_module[param].weight.data.numel()*fsdp_model.size,
+                            device=weight_to_module[param].weight.data.device,
+                            dtype=weight_to_module[param].weight.data.dtype)
+            dist.all_gather_into_tensor(full, weight_to_module[param].weight.data)
+            full = full.view(fsdp_model.original_shapes[weight_to_module[param]])
+            result[name] = full
+        else:
+            result[name] = param.data
+    return result
+    
 
 
 def get_sharded_optimizer(params, optimizer_cls: type[torch.optim.Optimizer], **kwargs) -> torch.optim.Optimizer:
@@ -142,4 +157,6 @@ def get_sharded_optimizer(params, optimizer_cls: type[torch.optim.Optimizer], **
     Returns:
         Instance of sharded optimizer.
     """
-    raise NotImplementedError
+    from cs336_systems.optimizer_state_sharding import ShardedOptimizer
+    return ShardedOptimizer(params, optimizer_cls, **kwargs)
+    
